@@ -259,8 +259,10 @@ body::before{
 .revealwrap:has(#reveal[hidden]){display:none}
 #reveal:disabled{opacity:.45;cursor:default;transform:none;box-shadow:none}
 body.big .pickhint{font-size:19px}
-/* السرقة */
-.stealbar[hidden],#next[hidden],#practiceBtn[hidden]{display:none}
+/* إنقاذ السؤال */
+.stealbar[hidden],.choicebar[hidden],#next[hidden],#practiceBtn[hidden]{display:none}
+#keep small,#ithar small{display:block;font-family:'Tajawal',sans-serif;font-size:13px;font-weight:700;opacity:.8;line-height:1.3}
+.kept.ithar{color:var(--malachite);border-color:rgba(111,216,166,.5)}
 #steal small{display:block;font-family:'Tajawal',sans-serif;font-size:13px;font-weight:700;opacity:.75;line-height:1.3}
 .stealtag{display:inline-block;font:700 11.5px 'Tajawal',sans-serif;padding:2px 9px;border-radius:99px;
   background:rgba(255,122,133,.16);color:#FF9AA3;border:1px solid rgba(255,122,133,.45);vertical-align:middle}
@@ -368,7 +370,7 @@ body.big .rv .nt{font-size:17px}
     </div>
     <p class="tagline">اختر بطاقة… واكشف السؤال — ولكل لاعب مساعدة واحدة تحذف إجابتين خاطئتين<br>
       يختار اللاعب إجابته ويستطيع تغييرها، ولا تُكشف النتيجة إلا عند انتهاء الوقت<br>
-      وإن أخطأ لاعب فلمن بعده أن يسرق السؤال: الصواب نصف نقطة، والخطأ ناقص نقطة</p>
+      وإن أخطأ لاعب فلمن بعده أن ينقذ السؤال: الصواب نصف نقطة يأخذها أو يُؤثر بها أخاه، والخطأ ناقص نقطة</p>
 
     <div class="resume" id="resumeBar">
       <p>لديك جولة لم تكتمل<span class="small" id="resumeInfo"></span></p>
@@ -410,7 +412,7 @@ body.big .rv .nt{font-size:17px}
           <button type="button" class="chip" id="chipNote" role="switch" aria-checked="false"><span class="box" aria-hidden="true"></span> إخفاء الحديث والمصدر بعد الإجابة</button>
           <button type="button" class="chip" id="chipBig" role="switch" aria-checked="false"><span class="box" aria-hidden="true"></span> وضع العرض على الشاشة</button>
           <button type="button" class="chip on" id="chipFresh" role="switch" aria-checked="true"><span class="box" aria-hidden="true"></span> تفضيل الأسئلة الجديدة</button>
-          <button type="button" class="chip on" id="chipSteal" role="switch" aria-checked="true"><span class="box" aria-hidden="true"></span> سرقة السؤال عند الخطأ (+½ / −١)</button>
+          <button type="button" class="chip on" id="chipSteal" role="switch" aria-checked="true"><span class="box" aria-hidden="true"></span> إنقاذ السؤال عند الخطأ (+½ / −١)</button>
           <button type="button" class="chip on" id="chipPractice" role="switch" aria-checked="true"><span class="box" aria-hidden="true"></span> جولة مراجعة للأخطاء بعد المباراة</button>
         </div>
       </div>
@@ -434,7 +436,7 @@ body.big .rv .nt{font-size:17px}
     <div class="scores" id="scores"></div>
     <div class="turnbar" id="turnbar"></div>
     <div class="board" id="board"></div>
-    <p class="kbd">اختصارات: <b>١ ٢ ٣ ٤</b> للإجابة · <b>H</b> للمساعدة · <b>S</b> للسرقة · <b>Enter</b> للتالي · <b>P</b> للإيقاف المؤقّت</p>
+    <p class="kbd">اختصارات: <b>١ ٢ ٣ ٤</b> للإجابة · <b>H</b> للمساعدة · <b>R</b> لإنقاذ السؤال · <b>Enter</b> للتالي · <b>P</b> للإيقاف المؤقّت</p>
   </section>
 
   <!-- ===== النتائج ===== -->
@@ -490,7 +492,11 @@ body.big .rv .nt{font-size:17px}
         <p class="note" id="note"></p>
         <div class="center stealbar" id="stealbar" hidden>
           <button type="button" class="btn" id="steal"></button>
-          <button type="button" class="btn ghost sm" id="nosteal">لا سرقة — اكشف الإجابة</button>
+          <button type="button" class="btn ghost sm" id="nosteal">لا إنقاذ — اكشف الإجابة</button>
+        </div>
+        <div class="center choicebar" id="choicebar" hidden>
+          <button type="button" class="btn" id="keep"></button>
+          <button type="button" class="btn ghost" id="ithar"></button>
         </div>
         <div class="center"><button class="btn" id="next">التالي</button></div>
       </div>

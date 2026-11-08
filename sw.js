@@ -3,7 +3,7 @@
    السياسة: ملفات الموقع «الشبكة أولاً» حتى يظهر أي تحديث فور رفعه،
             والذاكرة احتياطٌ عند الانقطاع. الخطوط «الذاكرة أولاً».
    =========================================================== */
-const CACHE = 'akhlaq-cards-v2';
+const CACHE = 'akhlaq-cards-v3';
 const SHELL = [
   '/', '/index.html', '/game.js', '/questions.js',
   '/favicon.svg', '/manifest.webmanifest', '/og.png'

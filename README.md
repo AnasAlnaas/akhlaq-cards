@@ -7,7 +7,8 @@ Live: https://akhlaq-cards.netlify.app
 ## How it plays
 - 2–8 stages, three difficulty levels (or a rising ramp), optional timer.
 - Each player has one 50:50 help for the whole game.
-- **Steal:** if a player answers wrong, the next player may try — right is **+½**, wrong is **−1**.
+- **Rescue the question (إنقاذ السؤال):** if a player answers wrong, the next player may try — right earns **+½**, which the rescuer keeps or gives to the player who missed (إيثار, shown as a badge); wrong is **−1**. Not offered if the 50:50 was used on that question.
+- Answers are held: players may change their pick until the timer ends, then the result is revealed.
 - After each answer the full hadith, its source number and its grading (متفق عليه / البخاري / مسلم / صحيح / حسن) are shown.
 - **Review round:** after the match, every question missed on a player's own turn can be replayed without a timer or score.
 

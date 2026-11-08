@@ -57,10 +57,11 @@ let pools = {}, history = [];
 let timerId = null, left = 0, timerCb = null, paused = false, wasTicking = false;
 let curOrder = null;
 let modalOk = null, modalCancel = null, modalPrev = null;
-/* السرقة: إذا أخطأ اللاعب يحاول التالي — الصواب نصف نقطة، والخطأ ناقص نقطة */
+/* إنقاذ السؤال: إذا أخطأ اللاعب حاول التالي — الصواب نصف نقطة (له أو يُؤثر بها أخاه)، والخطأ ناقص نقطة */
 let useSteal = true, usePractice = true;
-let stealing = null;          // {by, pick} أثناء محاولة السرقة
-let pendingSteal = null;      // {i, order, pick} بعد الخطأ وقبل قرار السرقة
+let stealing = null;          // {by, pick} أثناء محاولة الإنقاذ
+let pendingSteal = null;      // {i, order, pick} بعد الخطأ وقبل قرار الإنقاذ
+let helpThisQ = false;        // استُعملت المساعدة في هذا السؤال؟
 /* جولة مراجعة الأخطاء بعد المباراة */
 let practice = null;          // {list, idx, right, order}
 const STEAL_WIN = 0.5, STEAL_LOSS = -1;
@@ -172,7 +173,7 @@ function saveGame(){
   if(!players.length) return;
   writeJSON('session', GAME_KEY, {
     v:1, nPlayers, nLevels, topic, qTime, diff, useSound, hideNote, bigText, preferFresh, useSteal, usePractice,
-    players: players.map(p => ({name:p.name, score:p.score, right:p.right, help:p.help, asked:p.asked})),
+    players: players.map(p => ({name:p.name, score:p.score, right:p.right, help:p.help, asked:p.asked, ithar:p.ithar || 0})),
     level, turn,
     cards: cards.map(c => ({q:c.q, opened:c.opened, by:c.by, ok:c.ok})),
     history
@@ -313,7 +314,7 @@ $('start').onclick = () => {
   players = Array.from({length:nPlayers}, (_,i) => ({
     name: ($('pn'+i).value || '').trim() || ('اللاعب ' + ORD[i]),
     color: COLORS[i],
-    score: 0,           // النقاط، وفيها أنصاف السرقة وخصمها
+    score: 0,           // النقاط، وفيها أنصاف الإنقاذ وخصمه
     right: 0,           // إجاباته الصحيحة في دوره
     asked: 0,
     help: true          // مساعدة واحدة في اللعبة كاملة، لا تتجدد مع المراحل
@@ -414,8 +415,9 @@ function askQuestion(i){
   const q = cards[i].q, p = players[turn];
   if(!p){ locked = false; return; }
   markSeen(q);
-  stealing = null; pendingSteal = null;
+  stealing = null; pendingSteal = null; helpThisQ = false;
   $('stealbar').hidden = true;
+  $('choicebar').hidden = true;
   $('next').hidden = false;
   $('pauseQ').textContent = 'إيقاف';
   $('qwho').innerHTML = `<span class="av" style="--tc:${p.color}">${AR[turn]}</span> ${esc(p.name)}`;
@@ -590,6 +592,7 @@ function useLifeline(){
   if(!p || !p.help || !curOrder || paused) return;
   if($('verdict').classList.contains('on')) return;   // بعد الإجابة لا مساعدة
   p.help = false;
+  helpThisQ = true;
 
   const wrong = shuffle(curOrder.map((o,k) => o.ok ? -1 : k).filter(k => k >= 0));
   const btns = $('answers').querySelectorAll('.ans');
@@ -681,20 +684,52 @@ function answer(i, order, pick){
   if(pick >= 0 && !ok) btns[pick].classList.add('wrong');
   const picked = pick >= 0 ? order[pick].t : null;
 
-  /* ——— محاولة سرقة ——— */
+  /* ——— محاولة إنقاذ السؤال ——— */
   if(stealing){
-    const sp = players[stealing.by];
-    sp.score += ok ? STEAL_WIN : STEAL_LOSS;
-    history.push({ lv: level, pi: stealing.by, q: cards[i].q, ok, picked, steal: true });
-    $('vhead').className = 'vhead ' + (ok ? 'good' : 'bad');
-    $('vhead').textContent = ok
-      ? `سرقة ناجحة يا ${sp.name} — نصف نقطة!`
-      : `${pick < 0 ? 'انتهى الوقت' : 'سرقة خاطئة'} — ناقص نقطة على ${sp.name}`;
+    const sp = players[stealing.by], fp = players[stealing.from];
+    const h = { lv: level, pi: stealing.by, q: cards[i].q, ok, picked, steal: true };
+    history.push(h);
     stealing = null;
     beep(ok);
-    reveal(i, order);
-    renderScores();
-    saveGame();
+    if(!ok){
+      sp.score += STEAL_LOSS;
+      $('vhead').className = 'vhead bad';
+      $('vhead').textContent = `${pick < 0 ? 'انتهى الوقت' : 'لم ينجح الإنقاذ'} — ناقص نقطة على ${sp.name}`;
+      reveal(i, order);
+      renderScores();
+      saveGame();
+      return;
+    }
+    // نجح الإنقاذ: لمن نصف النقطة؟ لنفسه، أو يُؤثر بها أخاه الذي أخطأ
+    $('vhead').className = 'vhead good';
+    $('vhead').textContent = `أنقذتَ السؤال يا ${sp.name}! لمن نصف النقطة؟`;
+    $('keep').innerHTML  = `لي <small>+½ لـ ${esc(sp.name)}</small>`;
+    $('ithar').innerHTML = `أُؤثِر بها أخي <small>+½ لـ ${esc(fp.name)}</small>`;
+    const choose = gave => {
+      if(!$('choicebar').hidden){
+        $('choicebar').hidden = true;
+        h.gave = gave;
+        if(gave){ fp.score += STEAL_WIN; sp.ithar = (sp.ithar || 0) + 1; }
+        else sp.score += STEAL_WIN;
+        $('vhead').textContent = gave
+          ? `آثَر ${sp.name} أخاه ${fp.name} بنصف النقطة — جزاك الله خيراً`
+          : `أنقذ ${sp.name} السؤال — نصف نقطة له`;
+        reveal(i, order);
+        renderScores();
+        saveGame();
+      }
+    };
+    $('keep').onclick  = () => choose(false);
+    $('ithar').onclick = () => choose(true);
+    // الإجابة الصحيحة تظهر الآن، والمصدر بعد الاختيار
+    const btns = [...$('answers').querySelectorAll('.ans')];
+    btns[order.findIndex(o => o.ok)].classList.add('right');
+    $('grade').innerHTML = ''; $('note').innerHTML = '';
+    $('stealbar').hidden = true;
+    $('next').hidden = true;
+    $('choicebar').hidden = false;
+    $('verdict').classList.add('on');
+    $('keep').focus();
     return;
   }
 
@@ -715,13 +750,14 @@ function answer(i, order, pick){
   renderScores();
   saveGame();
 
-  if(!ok && useSteal && nPlayers > 1){
+  // لا محاولة ثانية إن استُعملت المساعدة: يبقى خيار واحد فتصير النقطة مجّانية
+  if(!ok && useSteal && nPlayers > 1 && !helpThisQ){
     // لا تُكشف الإجابة بعد: للاعب التالي أن يحاول
     const sp = players[nextIdx()];
     pendingSteal = { i, order, pick };
     $('grade').innerHTML = '';
     $('note').innerHTML = '';
-    $('steal').innerHTML = `يحاول <b style="color:${sp.color}">${esc(sp.name)}</b> <small>صواب: +½ · خطأ: −١</small>`;
+    $('steal').innerHTML = `ينقذ السؤال <b style="color:${sp.color}">${esc(sp.name)}</b> <small>صواب: +½ (له أو لأخيه) · خطأ: −١</small>`;
     $('stealbar').hidden = false;
     $('next').hidden = true;
     $('verdict').classList.add('on');
@@ -736,10 +772,10 @@ function startSteal(){
   const { i, order, pick } = pendingSteal;
   pendingSteal = null;
   const by = nextIdx(), sp = players[by];
-  stealing = { by };
+  stealing = { by, from: turn };
   $('verdict').classList.remove('on');
   $('stealbar').hidden = true;
-  $('qwho').innerHTML = `<span class="av" style="--tc:${sp.color}">${AR[by]}</span> ${esc(sp.name)} <span class="stealtag">سرقة</span>`;
+  $('qwho').innerHTML = `<span class="av" style="--tc:${sp.color}">${AR[by]}</span> ${esc(sp.name)} <span class="stealtag">إنقاذ السؤال</span>`;
   // أعِد تفعيل الخيارات الباقية: لا الخاطئ المختار، ولا ما حذفته المساعدة
   $('answers').querySelectorAll('.ans').forEach((b, k) => {
     if(k !== pick && !b.classList.contains('gone')) b.disabled = false;
@@ -790,8 +826,9 @@ document.addEventListener('keydown', e => {
   if(!$('overlay').classList.contains('on')) return;
   trapTab(e, $('overlay'));
 
-  if(!$('stealbar').hidden){             // بانتظار قرار السرقة
-    if(e.key === 's' || e.key === 'S' || e.key === 'س'){ e.preventDefault(); startSteal(); }
+  if(!$('choicebar').hidden) return;     // بانتظار اختيار: لي أو أُؤثر بها أخي
+  if(!$('stealbar').hidden){             // بانتظار قرار الإنقاذ
+    if(e.key === 'r' || e.key === 'R' || e.key === 'ق'){ e.preventDefault(); startSteal(); }
     else if(e.key === 'Enter' && document.activeElement !== $('nosteal')){ e.preventDefault(); startSteal(); }
     return;
   }
@@ -827,7 +864,7 @@ function flash(big, sub, ms, then){
 
 function finish(){
   clearGame();
-  // الترتيب بالنقاط (وفيها السرقة)، ثم بنسبة الإصابة في الدور
+  // الترتيب بالنقاط (وفيها الإنقاذ)، ثم بنسبة الإصابة في الدور
   const ranked = players.map((p,i) => ({...p, idx:i, pct: p.asked ? Math.round(p.right / p.asked * 100) : 0}))
                         .sort((a,b) => (b.asked > 0) - (a.asked > 0) || b.score - a.score || b.pct - a.pct);
   const played = ranked.filter(p => p.asked > 0);
@@ -843,7 +880,8 @@ function finish(){
   $('resSub').textContent = (nPlayers === 1
     ? `أجبت على ${qOn(asked)} — نسبتك ${toAr(overall)}٪`
     : `الإجابات الصحيحة ${toAr(total)} من ${toAr(asked)} — نسبة المجموعة ${toAr(overall)}٪`) +
-    (steals.length ? ` · محاولات السرقة ${toAr(steals.length)}، نجح منها ${toAr(steals.filter(h => h.ok).length)}` : '');
+    (steals.length ? ` · محاولات الإنقاذ ${toAr(steals.length)}، نجح منها ${toAr(steals.filter(h => h.ok).length)}` +
+      (steals.some(h => h.gave) ? `، وآثَر فيها ${toAr(steals.filter(h => h.gave).length)}` : '') : '');
 
   const maxScore = Math.max(1, ...played.map(p => p.score));
   let place = 0, prev = null;
@@ -854,7 +892,8 @@ function finish(){
     return `<div class="row ${top ? 'first' : ''}" style="--pc:${p.color}">
       <span class="rank">${top ? '★' : (p.asked ? AR[place-1] : '—')}</span>
       <span class="rname"><span class="av">${AR[p.idx]}</span>${esc(p.name)}
-        ${p.asked && p.help ? '<span class="kept">لم يستخدم مساعدته</span>' : ''}</span>
+        ${p.asked && p.help ? '<span class="kept">لم يستخدم مساعدته</span>' : ''}
+        ${p.ithar ? `<span class="kept ithar">آثَر أخاه${p.ithar > 1 ? ' ×' + toAr(p.ithar) : ''}</span>` : ''}</span>
       <span class="pct">${p.asked ? pts(p.score) : '—'}<small>${
         p.asked ? `نقطة · أصاب ${toAr(p.right)} من ${toAr(p.asked)}` : 'لم يلعب'}</small></span>
       <span class="track"><i data-w="${w}"></i></span>
@@ -874,7 +913,7 @@ function finish(){
 }
 
 /* ================= جولة مراجعة الأخطاء =================
-   الأسئلة التي أخطأ فيها صاحب الدور (أيّاً كانت نتيجة السرقة)، بلا مؤقّت ولا نقاط */
+   الأسئلة التي أخطأ فيها صاحب الدور (أيّاً كانت نتيجة الإنقاذ)، بلا مؤقّت ولا نقاط */
 function wrongList(){
   const seen = new Set(), out = [];
   history.forEach(h => {
@@ -967,7 +1006,7 @@ function renderReview(){
     const correct = h.q.a[h.q.c];
     return `<div class="rv" style="--pc:${p.color};--rc:${h.ok ? OK_COLOR : NO_COLOR}">
       <div class="top"><span class="av">${AR[h.pi]}</span>${esc(p.name)}${h.steal
-        ? ` <span class="stealtag">سرقة ${h.ok ? '+½' : '−١'}</span>` : ''} · ${LEVELS[h.lv]} · ${TIERS[tierOf(h.lv)].label}${gradeTag(h.q)}</div>
+        ? ` <span class="stealtag">إنقاذ ${h.ok ? (h.gave ? '— آثَر به أخاه' : '+½') : '−١'}</span>` : ''} · ${LEVELS[h.lv]} · ${TIERS[tierOf(h.lv)].label}${gradeTag(h.q)}</div>
       <div class="q">${fmt(h.q.q)}</div>
       <div class="ok">الإجابة الصحيحة: ${fmt(correct)}</div>
       ${h.ok ? '' : `<div class="no">${h.picked === null ? 'انتهى الوقت دون إجابة' : 'اختار: ' + fmt(h.picked)}</div>`}
@@ -983,7 +1022,7 @@ $('rvToggle').onclick = () => {
 };
 
 $('again').onclick = () => {
-  players.forEach(p => { p.score = 0; p.right = 0; p.asked = 0; p.help = true; });
+  players.forEach(p => { p.score = 0; p.right = 0; p.asked = 0; p.ithar = 0; p.help = true; });
   history = [];
   newPools();
   level = 0;
