@@ -426,12 +426,54 @@ function askQuestion(i){
   $('answers').innerHTML = order.map((o,k) =>
     `<button class="ans" data-k="${k}"><span class="k">${AR[k]}</span><span>${fmt(o.t)}</span></button>`).join('');
   $('answers').querySelectorAll('.ans').forEach(b =>
-    b.onclick = () => answer(i, order, +b.dataset.k));
+    b.onclick = () => selectPick(+b.dataset.k));
 
   setupLifeline(order);
   openOverlay();
-  startTimer(() => answer(i, order, -1));
+  beginPicking(i, order);
 }
+
+/* ================= الاختيار المؤجَّل =================
+   يختار اللاعب إجابة فتُعلَّم اختياراً له، ويستطيع تغييرها حتى ينتهي الوقت،
+   ثم يُحكم على آخر اختيار. وبلا مؤقّت: يكشف زرّ «اكشف الإجابة» النتيجة. */
+let picking = null;           // {i, order, pick}
+function beginPicking(i, order){
+  picking = { i, order, pick: -1 };
+  $('answers').querySelectorAll('.ans').forEach(b => b.classList.remove('picked'));
+  $('pickhint').textContent = qTime
+    ? 'اختر إجابتك — تستطيع تغييرها، وتُكشف النتيجة عند انتهاء الوقت'
+    : 'اختر إجابتك — تستطيع تغييرها، ثم اضغط «اكشف الإجابة»';
+  $('pickhint').hidden = false;
+  $('reveal').hidden = !!qTime;
+  $('reveal').disabled = true;
+  startTimer(() => finishPicking());
+}
+function selectPick(k){
+  if(!picking || paused) return;
+  const btns = [...$('answers').querySelectorAll('.ans')];
+  if(!btns[k] || btns[k].disabled) return;
+  picking.pick = k;
+  btns.forEach((b, j) => {
+    b.classList.toggle('picked', j === k);
+    b.setAttribute('aria-pressed', String(j === k));
+  });
+  $('pickhint').textContent = qTime
+    ? 'اختيارك محفوظ — تستطيع تغييره حتى ينتهي الوقت'
+    : 'اختيارك محفوظ — تستطيع تغييره قبل الكشف';
+  $('reveal').disabled = false;
+}
+function finishPicking(){
+  if(!picking) return;
+  const { i, order, pick } = picking;
+  picking = null;
+  $('pickhint').hidden = true;
+  $('reveal').hidden = true;
+  $('answers').querySelectorAll('.ans').forEach(b => {
+    b.classList.remove('picked'); b.removeAttribute('aria-pressed');
+  });
+  answer(i, order, pick);
+}
+$('reveal').onclick = () => { if(picking && picking.pick >= 0 && !paused) finishPicking(); };
 
 /* ================= النافذة والتركيز ================= */
 function openOverlay(){
@@ -530,7 +572,7 @@ $('quit').onclick = () => openModal({
   text  : 'ستُعرض النتيجة على ما لُعب حتى الآن، مع مراجعة الأسئلة.',
   ok    : 'إنهاء وعرض النتيجة',
   cancel: 'متابعة اللعب',
-  onOk  : () => { closeModal(); closeOverlay(); locked = false; stealing = null; pendingSteal = null; finish(); },
+  onOk  : () => { closeModal(); closeOverlay(); locked = false; stealing = null; pendingSteal = null; picking = null; finish(); },
   onCancel: closeModal
 });
 
@@ -553,6 +595,13 @@ function useLifeline(){
   const btns = $('answers').querySelectorAll('.ans');
   wrong.slice(0, 2).forEach(k => {
     if(btns[k]){ btns[k].classList.add('gone'); btns[k].disabled = true; }
+    // حُذف الخيار الذي كان قد اختاره؟ يرجع بلا اختيار
+    if(picking && picking.pick === k){
+      picking.pick = -1;
+      btns[k].classList.remove('picked');
+      $('reveal').disabled = true;
+      $('pickhint').textContent = 'حُذف اختيارك — اختر من جديد';
+    }
   });
 
   $('lifeline').disabled = true;
@@ -697,7 +746,7 @@ function startSteal(){
   });
   const first = $('answers').querySelector('.ans:not([disabled])');
   if(first) first.focus();
-  startTimer(() => answer(i, order, -1));
+  beginPicking(i, order);
 }
 function skipSteal(){
   if(!pendingSteal) return;
@@ -744,6 +793,11 @@ document.addEventListener('keydown', e => {
   if(!$('stealbar').hidden){             // بانتظار قرار السرقة
     if(e.key === 's' || e.key === 'S' || e.key === 'س'){ e.preventDefault(); startSteal(); }
     else if(e.key === 'Enter' && document.activeElement !== $('nosteal')){ e.preventDefault(); startSteal(); }
+    return;
+  }
+  if(e.key === 'Enter' && picking && picking.pick >= 0 && !$('reveal').hidden){
+    e.preventDefault();                  // بلا مؤقّت: Enter يكشف الإجابة
+    $('reveal').click();
     return;
   }
   if(e.key === 'Enter' && $('verdict').classList.contains('on') && !$('next').hidden){
@@ -845,6 +899,9 @@ function showPractice(){
   $('tfill').style.transform = 'scaleX(1)';
   $('lifewrap').style.display = 'none';
   $('stealbar').hidden = true;
+  $('pickhint').hidden = true;
+  $('reveal').hidden = true;
+  picking = null;
   $('next').hidden = false;
   $('verdict').classList.remove('on');
   $('qwho').innerHTML = `<span class="stealtag">مراجعة الأخطاء</span> ${toAr(practice.idx + 1)} من ${toAr(practice.list.length)}`;

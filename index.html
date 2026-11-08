@@ -250,6 +250,15 @@ body::before{
 .vhead{font-family:'Lalezar',cursive;font-size:27px;line-height:1.6}
 .vhead.good{color:var(--malachite)}
 .vhead.bad{color:#FF9AA3}
+/* الاختيار المؤجَّل: يُعلَّم اختيار اللاعب ولا يُحكم عليه حتى ينتهي الوقت */
+.ans.picked{border-color:var(--gold);background:rgba(231,178,74,.2);box-shadow:0 0 0 3px rgba(231,178,74,.18)}
+.ans.picked .k{background:var(--gold);color:#2A1408}
+.pickhint{text-align:center;color:var(--muted);font-size:14.5px;font-weight:700;margin-top:16px}
+.pickhint[hidden],#reveal[hidden]{display:none}
+.revealwrap{margin-top:14px}
+.revealwrap:has(#reveal[hidden]){display:none}
+#reveal:disabled{opacity:.45;cursor:default;transform:none;box-shadow:none}
+body.big .pickhint{font-size:19px}
 /* السرقة */
 .stealbar[hidden],#next[hidden],#practiceBtn[hidden]{display:none}
 #steal small{display:block;font-family:'Tajawal',sans-serif;font-size:13px;font-weight:700;opacity:.75;line-height:1.3}
@@ -358,6 +367,7 @@ body.big .rv .nt{font-size:17px}
       <h1>بطاقات الأخلاق</h1>
     </div>
     <p class="tagline">اختر بطاقة… واكشف السؤال — ولكل لاعب مساعدة واحدة تحذف إجابتين خاطئتين<br>
+      يختار اللاعب إجابته ويستطيع تغييرها، ولا تُكشف النتيجة إلا عند انتهاء الوقت<br>
       وإن أخطأ لاعب فلمن بعده أن يسرق السؤال: الصواب نصف نقطة، والخطأ ناقص نقطة</p>
 
     <div class="resume" id="resumeBar">
@@ -467,6 +477,8 @@ body.big .rv .nt{font-size:17px}
     <div class="qbody">
       <div class="qtext" id="qtext"></div>
       <div class="answers" id="answers"></div>
+      <p class="pickhint" id="pickhint" aria-live="polite" hidden></p>
+      <div class="center revealwrap"><button type="button" class="btn" id="reveal" hidden disabled>اكشف الإجابة</button></div>
       <div class="lifewrap" id="lifewrap">
         <button type="button" class="lifebtn" id="lifeline">
           <span class="cut">50:50</span><span id="lifetext">احذف إجابتين خاطئتين</span>
